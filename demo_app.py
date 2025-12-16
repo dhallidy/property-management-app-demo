@@ -4,9 +4,86 @@ import time
 import os
 import openai
 from functools import lru_cache
+import hashlib
 
 # 1. SETUP
 load_dotenv()
+
+# Set page config
+st.set_page_config(page_title="Student Housing AI Ops", layout="wide")
+
+# Password protection function
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        # Get the hash from Streamlit secrets
+        try:
+            stored_hash = st.secrets["hashed_password"]
+            
+            # Hash the user's password
+            user_password = st.session_state["password"]
+            user_hash = hashlib.sha256(user_password.encode()).hexdigest()
+            
+            # Compare hashes
+            if user_hash == stored_hash:
+                st.session_state["password_correct"] = True
+                del st.session_state["password"]  # don't store password
+            else:
+                st.session_state["password_correct"] = False
+        except Exception as e:
+            st.error(f"Error checking password: {str(e)}")
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # First run, show input for password.
+        st.markdown("# 🔒 Property Management System")
+        st.markdown("Please enter the password to access the system.")
+        st.text_input(
+            "Password", type="password", on_change=password_entered, key="password"
+        )
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password not correct, show input + error.
+        st.markdown("# 🔒 Property Management System")
+        st.markdown("Please enter the password to access the system.")
+        st.text_input(
+            "Password", type="password", on_change=password_entered, key="password"
+        )
+        st.error("😕 Password incorrect")
+        return False
+    else:
+        # Password correct.
+        return True
+
+# Check password before showing the app
+if not check_password():
+    st.stop()  # Don't continue with the rest of the app
+
+# Now that the password is correct, we can access the secrets
+try:
+    # Get API key from Streamlit secrets
+    openai_api_key = st.secrets["openai_api_key"]
+    
+    # Initialize OpenAI client
+    client = openai.OpenAI(api_key=openai_api_key)
+except Exception as e:
+    st.error(f"Error accessing OpenAI API key from secrets: {str(e)}")
+    st.markdown("""
+    ### Configuration Error
+    
+    The app couldn't find the OpenAI API key in the Streamlit secrets.
+    
+    Please make sure you've set up the secrets correctly in the Streamlit Cloud dashboard:
+    1. Go to your app settings
+    2. Click on "Secrets"
+    3. Add the following secrets:
+       ```
+       openai_api_key = "sk-your-api-key-here"
+       hashed_password = "your-hashed-password-here"
+       ```
+    """)
+    st.stop()
 
 # Initialize session state for caching
 if 'cache' not in st.session_state:
@@ -17,21 +94,6 @@ if 'model_name' not in st.session_state:
     
 if 'issue' not in st.session_state:
     st.session_state.issue = "There is water leaking under my bathroom sink"
-
-# Initialize OpenAI API key
-st.sidebar.markdown("### API Key Configuration")
-openai_api_key = st.sidebar.text_input("Enter your OpenAI API key:", type="password")
-
-if not openai_api_key:
-    st.warning("Please enter your OpenAI API key in the sidebar to continue.")
-    st.stop()
-
-# Initialize OpenAI client
-try:
-    client = openai.OpenAI(api_key=openai_api_key)
-except Exception as e:
-    st.error(f"Error initializing OpenAI client: {str(e)}")
-    st.stop()
 
 # 2. DEFINE OPTIMIZED TOOLS
 @lru_cache(maxsize=100)
@@ -200,8 +262,6 @@ def is_tenant_issue(responsibility_text):
     return False
 
 # 3. STREAMLIT UI SETUP
-st.set_page_config(page_title="Student Housing AI Ops", layout="wide")
-
 st.title("🏢 Property Operations AI Agent")
 st.markdown("""
 **Business Value Demo:** This agent triages incoming tenant requests, determines lease liability, and automatically checks inventory for required repairs.
@@ -314,37 +374,3 @@ elif run_btn:
         final_result = f"{responsibility_result}\n\n**PARTS NEEDED:**\n{parts_result}\n\n**INVENTORY STATUS:**\n{inventory_text}"
     
     progress_bar.progress(100)
-    status_text.text("Analysis complete!")
-    time.sleep(0.5)  # Small delay for better UX
-    status_text.empty()  # Clear status text
-    
-    # Cache the final result
-    st.session_state.cache[cache_key] = final_result
-    
-    # Display Results
-    st.success("Analysis Complete")
-    st.subheader("Final Agent Report")
-    st.markdown(final_result)
-    
-    # Debug info to help troubleshoot responsibility detection
-    if st.checkbox("Show debug info"):
-        st.write("### Debug Information")
-        st.write(f"Responsibility text: {responsibility_result}")
-        st.write(f"Detected as tenant responsibility: {is_tenant_responsibility}")
-        st.write("Text contains 'tenant responsibility': {0}".format("tenant responsibility" in responsibility_result.lower()))
-        st.write("Text contains \"tenant's responsibility\": {0}".format("tenant's responsibility" in responsibility_result.lower()))
-        st.write("Text contains 'responsibility: tenant': {0}".format("responsibility: tenant" in responsibility_result.lower()))
-
-# Add a clear cache button to sidebar
-if st.sidebar.button("Clear Cache"):
-    st.session_state.cache = {}
-    st.sidebar.success("Cache cleared!")
-
-# Add timing metrics
-if st.checkbox("Show performance metrics"):
-    st.write("### Performance Optimizations")
-    st.write("1. **Direct API calls** instead of using CrewAI or LangChain")
-    st.write("2. **Python's built-in LRU cache** for function-level caching")
-    st.write("3. **Streamlined prompts** with fewer tokens")
-    st.write("4. **Token limits** to ensure faster responses")
-    st.write("5. **Pre-computed examples** for instant results")
