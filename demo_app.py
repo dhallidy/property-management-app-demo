@@ -8,50 +8,33 @@ from functools import lru_cache
 # 1. SETUP
 load_dotenv()
 
-# Initialize OpenAI client with better error handling for API key
-def get_openai_api_key():
-    # Try environment variable first (standard format)
-    if 'OPENAI_API_KEY' in os.environ:
-        return os.environ['OPENAI_API_KEY']
+# Initialize session state for caching
+if 'cache' not in st.session_state:
+    st.session_state.cache = {}
     
-    # Try environment variable with double underscore (your current format)
-    if 'OPENAI__API_KEY' in os.environ:
-        return os.environ['OPENAI__API_KEY']
+if 'model_name' not in st.session_state:
+    st.session_state.model_name = "gpt-3.5-turbo"
     
-    # Try Streamlit secrets in nested format
-    try:
-        return st.secrets["openai"]["api_key"]
-    except:
-        pass
-    
-    # Try Streamlit secrets in flat format
-    try:
-        return st.secrets["OPENAI_API_KEY"]
-    except:
-        pass
-        
-    # Try Streamlit secrets with double underscore
-    try:
-        return st.secrets["OPENAI__API_KEY"]
-    except:
-        pass
-    
-    # If we get here, we couldn't find the API key
-    st.error("OpenAI API key not found. Please check your configuration.")
+if 'issue' not in st.session_state:
+    st.session_state.issue = "There is water leaking under my bathroom sink"
+
+# Initialize OpenAI API key
+st.sidebar.markdown("### API Key Configuration")
+openai_api_key = st.sidebar.text_input("Enter your OpenAI API key:", type="password")
+
+if not openai_api_key:
+    st.warning("Please enter your OpenAI API key in the sidebar to continue.")
     st.stop()
 
-# Get API key and initialize client
-openai_api_key = get_openai_api_key()
-client = openai.OpenAI(api_key=openai_api_key)
-
-
-
-# Initialize OpenAI client directly for faster API calls
-openai_api_key = os.getenv("OPENAI_API_KEY")
-client = openai.OpenAI(api_key=openai_api_key)
+# Initialize OpenAI client
+try:
+    client = openai.OpenAI(api_key=openai_api_key)
+except Exception as e:
+    st.error(f"Error initializing OpenAI client: {str(e)}")
+    st.stop()
 
 # 2. DEFINE OPTIMIZED TOOLS
-@lru_cache(maxsize=100)  # Python's built-in caching
+@lru_cache(maxsize=100)
 def analyze_lease_responsibility_cached(issue):
     """Cached version of lease analysis to prevent duplicate API calls."""
     # This is the function that will be cached
@@ -194,23 +177,23 @@ def get_tenant_diy_instructions(issue):
 
 # Function to determine if it's tenant responsibility
 def is_tenant_issue(responsibility_text):
-    """Better detection of tenant responsibility using regex and multiple checks."""
+    """Better detection of tenant responsibility using simple string checks."""
     # Convert to lowercase for case-insensitive matching
     text = responsibility_text.lower()
     
     # Check for direct statements about tenant responsibility
-    if re.search(r"responsibility:\s*tenant", text):
+    if "responsibility: tenant" in text:
         return True
     
     if "tenant responsibility" in text or "tenant's responsibility" in text:
         return True
         
     # Check for tenant being mentioned as responsible
-    if re.search(r"tenant\s+is\s+responsible", text):
+    if "tenant is responsible" in text:
         return True
         
     # Check if the text explicitly mentions it's not property manager's responsibility
-    if re.search(r"not\s+.*\s*property\s+manager", text) and not re.search(r"not\s+.*\s*tenant", text):
+    if "not property manager" in text and "not tenant" not in text:
         return True
         
     # Default to property manager if unclear
@@ -218,16 +201,6 @@ def is_tenant_issue(responsibility_text):
 
 # 3. STREAMLIT UI SETUP
 st.set_page_config(page_title="Student Housing AI Ops", layout="wide")
-
-# Initialize session state for caching
-if 'cache' not in st.session_state:
-    st.session_state.cache = {}
-    
-if 'model_name' not in st.session_state:
-    st.session_state.model_name = "gpt-3.5-turbo"
-    
-if 'issue' not in st.session_state:
-    st.session_state.issue = "There is water leaking under my bathroom sink"
 
 st.title("🏢 Property Operations AI Agent")
 st.markdown("""
@@ -353,14 +326,14 @@ elif run_btn:
     st.subheader("Final Agent Report")
     st.markdown(final_result)
     
-# Debug info to help troubleshoot responsibility detection    
-if st.checkbox("Show debug info"):        
-    st.write("### Debug Information")        
-    st.write(f"Responsibility text: {responsibility_result}")        
-    st.write(f"Detected as tenant responsibility: {is_tenant_responsibility}")        
-    st.write("Text contains 'tenant responsibility': {0}".format("tenant responsibility" in responsibility_result.lower()))                
-    st.write("Text contains \"tenant's responsibility\": {0}".format("tenant's responsibility" in responsibility_result.lower()))       
-    st.write("Text contains 'responsibility: tenant': {0}".format("responsibility: tenant" in responsibility_result.lower()))
+    # Debug info to help troubleshoot responsibility detection
+    if st.checkbox("Show debug info"):
+        st.write("### Debug Information")
+        st.write(f"Responsibility text: {responsibility_result}")
+        st.write(f"Detected as tenant responsibility: {is_tenant_responsibility}")
+        st.write("Text contains 'tenant responsibility': {0}".format("tenant responsibility" in responsibility_result.lower()))
+        st.write("Text contains \"tenant's responsibility\": {0}".format("tenant's responsibility" in responsibility_result.lower()))
+        st.write("Text contains 'responsibility: tenant': {0}".format("responsibility: tenant" in responsibility_result.lower()))
 
 # Add a clear cache button to sidebar
 if st.sidebar.button("Clear Cache"):
