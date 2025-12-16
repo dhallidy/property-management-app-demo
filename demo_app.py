@@ -4,8 +4,47 @@ import time
 import os
 import openai
 from functools import lru_cache
+
 # 1. SETUP
 load_dotenv()
+
+# Initialize OpenAI client with better error handling for API key
+def get_openai_api_key():
+    # Try environment variable first (standard format)
+    if 'OPENAI_API_KEY' in os.environ:
+        return os.environ['OPENAI_API_KEY']
+    
+    # Try environment variable with double underscore (your current format)
+    if 'OPENAI__API_KEY' in os.environ:
+        return os.environ['OPENAI__API_KEY']
+    
+    # Try Streamlit secrets in nested format
+    try:
+        return st.secrets["openai"]["api_key"]
+    except:
+        pass
+    
+    # Try Streamlit secrets in flat format
+    try:
+        return st.secrets["OPENAI_API_KEY"]
+    except:
+        pass
+        
+    # Try Streamlit secrets with double underscore
+    try:
+        return st.secrets["OPENAI__API_KEY"]
+    except:
+        pass
+    
+    # If we get here, we couldn't find the API key
+    st.error("OpenAI API key not found. Please check your configuration.")
+    st.stop()
+
+# Get API key and initialize client
+openai_api_key = get_openai_api_key()
+client = openai.OpenAI(api_key=openai_api_key)
+
+
 
 # Initialize OpenAI client directly for faster API calls
 openai_api_key = os.getenv("OPENAI_API_KEY")
