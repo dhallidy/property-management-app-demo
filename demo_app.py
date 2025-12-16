@@ -1,10 +1,9 @@
-import streamlit as stfrom dotenv 
-import load_dotenv
+import streamlit as st
+from dotenv import load_dotenv
 import time
 import os
 import openai
-from functools 
-import lru_cache
+from functools import lru_cache
 # 1. SETUP
 load_dotenv()
 
