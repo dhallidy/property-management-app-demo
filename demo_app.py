@@ -3,48 +3,9 @@ import time
 import os
 import openai
 from functools import lru_cache
-import hashlib
 
 # Set page config
 st.set_page_config(page_title="Student Housing AI Ops", layout="wide")
-
-# Password protection function
-def check_password():
-    """Returns `True` if the user had the correct password."""
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        # For demo purposes, use a simple hardcoded password
-        # In production, use the hashed password from secrets
-        if st.session_state["password"] == "property123":
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # don't store password
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        # First run, show input for password.
-        st.markdown("# 🔒 Property Management System")
-        st.markdown("Please enter the password to access the system.")
-        st.text_input(
-            "Password", type="password", on_change=password_entered, key="password"
-        )
-        return False
-    elif not st.session_state["password_correct"]:
-        # Password not correct, show input + error.
-        st.markdown("# 🔒 Property Management System")
-        st.markdown("Please enter the password to access the system.")
-        st.text_input(
-            "Password", type="password", on_change=password_entered, key="password"
-        )
-        st.error("😕 Password incorrect")
-        return False
-    else:
-        # Password correct.
-        return True
-
-# Check password before showing the app
-if not check_password():
-    st.stop()  # Don't continue with the rest of the app
 
 # Get API key from Streamlit secrets
 try:
@@ -88,7 +49,7 @@ def is_tenant_issue(responsibility_text):
         return True
     return False
 
-# 3. STREAMLIT UI SETUP
+# STREAMLIT UI SETUP
 st.title("🏢 Property Operations AI Agent")
 st.markdown("""
 **Business Value Demo:** This agent triages incoming tenant requests, determines lease liability, and automatically checks inventory for required repairs.
